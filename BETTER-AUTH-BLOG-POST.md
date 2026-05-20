@@ -30,11 +30,12 @@ Pick the path that matches what you actually want:
 ```bash
 git clone https://github.com/PaulBratslavsky/launchpad-better-auth-example.git
 cd launchpad-better-auth-example
-cd strapi && yarn install && cp .env.example .env && yarn seed && cd ..
-cd next && yarn install && cp .env.example .env && cd ..
+yarn setup
+yarn seed
+yarn dev
 ```
 
-Then boot Strapi (`yarn develop` in `strapi/`) and Next.js (`yarn dev` in `next/`) and you have a working Better Auth stack at `http://localhost:3000`. Skip the rest of this post.
+That gives you a working Better Auth stack at `http://localhost:3000` (Next.js) with Strapi running on `http://localhost:1337`. Skip the rest of this post.
 
 **2. Apply automatically to your own project** — when you already have a Strapi v5 + Next.js App Router project and don't want to do this by hand.
 
