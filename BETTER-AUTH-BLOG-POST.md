@@ -185,14 +185,14 @@ If you're on npm, the equivalent is `npm install --legacy-peer-deps better-auth 
 
 Six packages, only one of which is a workaround for an upstream issue:
 
-| Package | Role |
-| --- | --- |
-| `better-auth` | The core auth library |
-| `@strapi-community/plugin-better-auth` | Strapi database adapter and route mounter |
-| `@strapi-community/plugin-api-permissions` | Public + Authenticated roles, Content API RBAC |
-| `@strapi-community/plugin-better-auth-dashboard` | Admin panel UI for users / sessions |
-| `@better-auth/infra` | Peer dep of the dashboard's `dash()` plugin |
-| `zod@^4.1.12` | **Workaround:** see callout below. |
+| Package | Role | Links |
+| --- | --- | --- |
+| `better-auth` | The core auth library | [docs](https://better-auth.com/docs) · [npm](https://www.npmjs.com/package/better-auth) · [github](https://github.com/better-auth/better-auth) |
+| `@strapi-community/plugin-better-auth` | Strapi database adapter and route mounter | [docs](https://strapi-community.github.io/plugin-better-auth/docs/better-auth/installation) · [readme](https://github.com/strapi-community/plugin-better-auth/blob/main/plugins/plugin-better-auth/README.md) · [npm](https://www.npmjs.com/package/@strapi-community/plugin-better-auth) |
+| `@strapi-community/plugin-api-permissions` | Public + Authenticated roles, Content API RBAC | [readme](https://github.com/strapi-community/plugin-better-auth/blob/main/plugins/plugin-api-permissions/README.md) · [npm](https://www.npmjs.com/package/@strapi-community/plugin-api-permissions) |
+| `@strapi-community/plugin-better-auth-dashboard` | Admin panel UI for users / sessions | [readme](https://github.com/strapi-community/plugin-better-auth/blob/main/plugins/plugin-better-auth-dashboard/README.md) · [npm](https://www.npmjs.com/package/@strapi-community/plugin-better-auth-dashboard) |
+| `@better-auth/infra` | Peer dep of the dashboard's `dash()` plugin | [npm](https://www.npmjs.com/package/@better-auth/infra) |
+| `zod@^4.1.12` | **Workaround:** see callout below. | [docs](https://zod.dev) · [npm](https://www.npmjs.com/package/zod) · [github](https://github.com/colinhacks/zod) |
 
 > **Why is `zod@^4.1.12` needed?**
 >
