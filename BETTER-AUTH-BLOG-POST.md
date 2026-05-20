@@ -30,6 +30,7 @@ Pick the path that matches what you actually want:
 ```bash
 git clone https://github.com/PaulBratslavsky/launchpad-better-auth-example.git
 cd launchpad-better-auth-example
+yarn install
 yarn setup
 yarn seed
 yarn dev
