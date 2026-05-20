@@ -1,6 +1,18 @@
-# LaunchPad - Official Strapi Demo
+# LaunchPad — Better Auth Example
 
 ![LaunchPad](./LaunchPad.jpg)
+
+> **This is an experimental fork of [strapi/LaunchPad](https://github.com/strapi/LaunchPad) that replaces `@strapi/plugin-users-permissions` with the community Better Auth stack** (`@strapi-community/plugin-better-auth` + `plugin-api-permissions` + `plugin-better-auth-dashboard`).
+>
+> Not officially supported. All three Better Auth plugins are still pre-release. Use it as a playground for evaluating Better Auth with Strapi v5 + Next.js — not in production.
+>
+> **Companion docs in this repo:**
+> - [`BETTER-AUTH-BLOG-POST.md`](./BETTER-AUTH-BLOG-POST.md) — Step-by-step tutorial walking from `strapi/LaunchPad@main` to the state of this repo
+> - [`BETTER-AUTH-SETUP.md`](./BETTER-AUTH-SETUP.md) — Concise reference guide
+>
+> Original LaunchPad README continues below.
+
+---
 
 Welcome aboard **LaunchPad**, the official Strapi demo application, where we launch your content into the stratosphere at the speed of _"we-can't-even-measure-it!"_.
 This repository contains the following:

@@ -14,29 +14,36 @@
     "postinstall": "node ./scripts/updateUuid.js"
   },
   "devDependencies": {
+    "@better-auth/cli": "1.4.21",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "typescript": "^5"
   },
   "dependencies": {
+    "@better-auth/core": "^1.6.11",
+    "@better-auth/infra": "^0.2.8",
+    "@strapi-community/plugin-api-permissions": "^1.0.0-alpha.3",
+    "@strapi-community/plugin-better-auth": "^1.0.0-beta.6",
+    "@strapi-community/plugin-better-auth-dashboard": "^1.0.0-alpha.7",
     "@strapi/plugin-cloud": "5.46.0",
     "@strapi/plugin-seo": "^2.0.4",
-    "@strapi/plugin-users-permissions": "5.46.0",
     "@strapi/strapi": "5.46.0",
+    "better-auth": "^1.6.11",
     "better-sqlite3": "11.7.0",
     "pluralize": "^8.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
     "styled-components": "^6.0.0",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "zod": "^4.1.12"
   },
   "author": {
     "name": "A Strapi developer"
   },
   "strapi": {
-    "uuid": "LAUNCHPAD"
+    "uuid": "LAUNCHPAD-LOCAL-2fe0b714-e9e9-49fa-aef5-93598617b80f"
   },
   "engines": {
     "node": ">=18.0.0 <=22.x.x",
