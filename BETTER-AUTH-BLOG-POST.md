@@ -636,7 +636,7 @@ A few sharp edges worth being aware of:
 - For 2FA, magic links, or organizations, add the corresponding Better Auth plugins to `src/lib/auth.ts` and re-run `npx -y @better-auth/cli generate --config src/lib/auth.ts --yes`.
 - File issues against the community plugins on [github.com/strapi-community/plugin-better-auth](https://github.com/strapi-community/plugin-better-auth) — they're actively maintained and the maintainers respond fast.
 
-This is the direction the Strapi team is moving — giving you the option to use Better Auth in your projects alongside (or instead of) `users-permissions`. Thank you for trying out the feature. Please share feedback, ideas, or bug reports in the [`strapi-community/plugin-better-auth`](https://github.com/strapi-community/plugin-better-auth) repo — that's where the maintainers triage issues for all three plugins.
+This is the direction the Strapi team is moving — giving you the option to use Better Auth in your projects instead of `users-permissions`. Thank you for trying out the feature. Please share feedback, ideas, or bug reports in the [`strapi-community/plugin-better-auth`](https://github.com/strapi-community/plugin-better-auth) repo — that's where the maintainers triage issues for all three plugins.
 
 **Citations**
 
