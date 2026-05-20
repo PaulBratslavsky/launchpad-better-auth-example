@@ -3,7 +3,7 @@
 - Strapi's official `users-permissions` plugin works fine, but if you want modern auth flows (social providers, two-factor, magic links) the community Better Auth plugins are a solid alternative — though they're still in alpha/beta.
 - The migration is more than a plugin swap: `plugin-better-auth` **refuses to load** alongside `users-permissions`, so you also lose the role/permission system U&P provides. You get it back by adding `plugin-api-permissions`.
 - The full beta setup is actually **three** plugins: `plugin-better-auth` (auth flows), `plugin-api-permissions` (Content API RBAC), `plugin-better-auth-dashboard` (admin UI for users and sessions).
-- You will hit installation gotchas the docs don't mention yet: a hard Strapi 5.45.0+ requirement, a zod major-version mismatch, an `@better-auth/core` hoisting issue, and a CLI resolution issue with `yarn dlx`. This post fixes all of them.
+- One install-time gotcha worth knowing: Strapi pulls in zod 3 transitively but `@better-auth/infra` needs zod 4 — you need to install `zod@^4.1.12` explicitly so it wins the top-level slot. Without it, schema generation fails. Aside from that, the install is what the docs say.
 - Three paths to apply this: clone the finished example, run a Claude Code skill on your own project, or walk through the steps by hand. The post covers all three.
 
 ## Why This Post Exists
@@ -178,26 +178,21 @@ yarn add \
   @strapi-community/plugin-api-permissions \
   @strapi-community/plugin-better-auth-dashboard \
   @better-auth/infra \
-  @better-auth/core \
   zod@^4.1.12
-
-yarn add -D @better-auth/cli
 ```
 
-That looks like a lot of packages. Here's why each one is needed:
+If you're on npm, the equivalent is `npm install --legacy-peer-deps better-auth @strapi-community/plugin-better-auth ...` — same packages, same result. pnpm works identically.
 
-| Package | Why |
+Six packages, only one of which is a workaround for an upstream issue:
+
+| Package | Role |
 | --- | --- |
-| `better-auth` | The core auth library. Already in LaunchPad. |
-| `@strapi-community/plugin-better-auth` | The Strapi database adapter and route mounter. |
-| `@strapi-community/plugin-api-permissions` | Restores Public/Authenticated roles + Content API RBAC. |
-| `@strapi-community/plugin-better-auth-dashboard` | Admin panel UI for managing users and sessions. |
-| `@better-auth/infra` | Peer dep of the dashboard's `dash()` plugin. |
-| `@better-auth/core` | Yarn doesn't hoist it from `better-auth/node_modules/`. Adding it explicitly forces it to the top. |
-| `zod@^4.1.12` | `@better-auth/infra` uses `z.email()`, which only exists in zod 4. Strapi pulls in zod 3 transitively. |
-| `@better-auth/cli` (dev) | Used to regenerate the Better Auth schema. Local install avoids `yarn dlx` resolution issues. |
-
-> **Heads-up if you skip the zod and `@better-auth/core` pins:** schema generation will fail with `TypeError: z.email is not a function` and `Cannot find package '@better-auth/core'` respectively. These two are the most-common dead ends — pin them at the top level and you'll never see those errors.
+| `better-auth` | The core auth library |
+| `@strapi-community/plugin-better-auth` | Strapi database adapter and route mounter |
+| `@strapi-community/plugin-api-permissions` | Public + Authenticated roles, Content API RBAC |
+| `@strapi-community/plugin-better-auth-dashboard` | Admin panel UI for users / sessions |
+| `@better-auth/infra` | Peer dep of the dashboard's `dash()` plugin |
+| `zod@^4.1.12` | **Workaround:** `@better-auth/infra` peer-depends on zod 4 and calls `z.email()`. Strapi's own deps pull in zod 3 transitively, so by default zod 3 wins the top-level `node_modules` slot. Pinning zod 4 in your `package.json` forces it to the top, where `@better-auth/infra` finds it. |
 
 ## Step 5 — Enable the Plugins in `config/plugins.ts`
 
@@ -362,10 +357,10 @@ A few things to note about this:
 `plugin-better-auth` in beta ships with **zero content types**. You generate them from `src/lib/auth.ts` using the Better Auth CLI:
 
 ```bash
-yarn exec better-auth generate --config src/lib/auth.ts --yes
+npx -y @better-auth/cli generate --config src/lib/auth.ts --yes
 ```
 
-> **Why `yarn exec` instead of `yarn dlx`?** The Better Auth docs say to run `npx auth generate`. With Yarn 4 + node-modules linker, `yarn dlx` runs the CLI in an isolated cache directory that can't see your project's hoisted `@better-auth/core` — it errors out with `Cannot find package '@better-auth/core'`. Installing `@better-auth/cli` as a local dev dep (Step 4) and calling it with `yarn exec better-auth ...` resolves correctly against your project's node_modules.
+> The Better Auth docs suggest `npx auth generate`. The longer form `npx -y @better-auth/cli generate` does the same thing and skips an interactive prompt about downloading the CLI. Either works.
 
 You should see output like:
 
@@ -619,35 +614,13 @@ After all that, here's what's different from `users-permissions`:
 
 The dashboard alone is a big quality-of-life upgrade — DAU / WAU / MAU, growth chart, cohort retention, per-user session list with revoke buttons.
 
-## Common Errors and Their Fixes
+## Troubleshooting
 
-If something goes wrong, here are the failure modes I hit while writing this:
+A few sharp edges worth being aware of:
 
-**`Error: The 'users-permissions' plugin is installed.`**
-You missed Step 3. Remove `@strapi/plugin-users-permissions` from `package.json` and reinstall. Disabling in `config/plugins.ts` does not work.
-
-**`Strapi v5.4x.x is not supported. Please upgrade to v5.45.0 or higher.`**
-Bump `@strapi/strapi`, `@strapi/plugin-cloud`, and any other `@strapi/*` packages to 5.45.0 or higher (Step 2). The current `main` of LaunchPad already meets this; this only bites if you clone an older snapshot.
-
-**`Could not initialize the Strapi Client … Could not parse invalid URL: "/api"`** (from the Next.js dev server, on every page)
-You forgot to create `next/.env`. Copy `next/.env.example` to `next/.env` so `NEXT_PUBLIC_API_URL` is set (Step 10).
-
-**Schema generation crashes with `TypeError: Cannot read properties of undefined (reading 'attributes')` and a stack trace pointing into `addUserCount`**
-Your `src/index.ts` bootstrap is calling `findMany` on `plugin::api-permissions.role` during schema generation, before the Better Auth `user` content type exists. Add the defensive guard from Step 8 that returns early when `strapi.contentTypes['plugin::better-auth.user']` is missing.
-
-**`TypeError: z.email is not a function`** during `better-auth generate`
-The hoisted zod is 3.x. Add `zod@^4.1.12` as a top-level dep in `strapi/package.json` and reinstall.
-
-**`Cannot find package '@better-auth/core'`** during `better-auth generate`
-Two fixes, combined:
-1. Add `@better-auth/core` as a direct dep so it hoists to the top of node_modules
-2. Use `yarn exec better-auth ...` with the locally-installed CLI instead of `yarn dlx`
-
-**`401 Unauthorized` on every `/api/*` content endpoint** after upgrade
-The Public role has zero permissions. Either run the bootstrap from Step 8 or toggle the permissions manually in **Settings → API Permissions → Roles → Public**.
-
-**`router.push('/')` after sign-up returns 404 in a localized app**
-LaunchPad uses an i18n middleware that requires a locale prefix. Push to `` `/${locale}` `` from your sign-up / sign-in form instead of plain `/`.
+- **`Error: The 'users-permissions' plugin is installed.`** at Strapi boot — you didn't fully remove `@strapi/plugin-users-permissions` in Step 3. The plugin checks for the package, not the enabled state, so disabling in `config/plugins.ts` isn't enough. Remove it from `package.json` and reinstall.
+- **`TypeError: z.email is not a function`** during schema generation — you skipped the `zod@^4.1.12` install. Add it and reinstall.
+- **`401 Unauthorized` on every `/api/*` content endpoint** — boot Strapi once after schema generation so the bootstrap in `src/index.ts` can seed the Public role's permissions. If you're still seeing 401s, check **Settings → API Permissions → Roles → Public** in the admin and toggle `find` / `findOne` on each content type manually.
 
 ## Branch Strategy: Keep It as an Example, Don't Merge
 

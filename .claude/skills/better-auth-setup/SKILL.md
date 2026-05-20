@@ -6,11 +6,11 @@ description: >
   in a Strapi v5 backend, and wire a Next.js (App Router) frontend to use them.
   Use when the user says "set up better auth", "add better auth to strapi",
   "install plugin-better-auth", "replace users-permissions with better auth",
-  "wire better auth into my next.js app", or any variation. Handles the
-  install gotchas (Strapi 5.45+ floor, U&P removal, zod 4 hoist,
-  @better-auth/core hoist, @better-auth/cli local install), generates the
-  auth schema, seeds Public-role permissions, and scaffolds the Next.js
-  client + sign-up/sign-in forms + user-menu in the navbar.
+  "wire better auth into my next.js app", or any variation. Handles the two
+  setup gotchas (Strapi 5.45+ required, users-permissions must be removed),
+  pins zod 4 to resolve a peer-dep conflict with Strapi's transitive zod 3,
+  generates the auth schema, seeds Public-role permissions, and scaffolds the
+  Next.js client + sign-up/sign-in forms + user-menu in the navbar.
 allowed-tools:
   - Read
   - Write
@@ -92,17 +92,14 @@ yarn add \
   @strapi-community/plugin-api-permissions@^1.0.0-alpha.3 \
   @strapi-community/plugin-better-auth-dashboard@^1.0.0-alpha.1 \
   @better-auth/infra \
-  @better-auth/core \
   zod@^4.1.12
-
-yarn add -D @better-auth/cli
 ```
+
+With npm: `npm install --legacy-peer-deps <same packages>`. With pnpm: `pnpm add <same packages>`.
 
 Run from the Strapi directory.
 
-The non-obvious deps:
-- `@better-auth/core` and `zod@^4.1.12` are explicit so they hoist to the top of node_modules. Without this, schema generation fails with "Cannot find package '@better-auth/core'" and/or "z.email is not a function".
-- `@better-auth/cli` as a dev dep, not via `yarn dlx`. `dlx` runs in an isolated env that can't see your project's hoisted modules.
+The only workaround in this list is **`zod@^4.1.12`**. `@better-auth/infra` peer-depends on zod 4 and calls `z.email()` (a zod 4 API). Strapi's transitive deps pull in zod 3, which wins the top-level `node_modules` slot by default and breaks `@better-auth/infra`. Pinning zod 4 in the project's `package.json` forces it to the top. This applies to all three package managers.
 
 ### 4. Write Strapi config files
 
@@ -124,8 +121,10 @@ For local-only setups you can use static placeholders. For anything else, genera
 ### 5. Generate the Better Auth schema
 
 ```bash
-yarn exec better-auth generate --config src/lib/auth.ts --yes
+npx -y @better-auth/cli generate --config src/lib/auth.ts --yes
 ```
+
+`npx` works in yarn, npm, and pnpm projects equally well — it runs the binary out of the project's node_modules if installed, otherwise downloads it. No need to add `@better-auth/cli` as a dev dep.
 
 Verify that `<strapi>/src/extensions/better-auth/content-types/` now contains `user/`, `session/`, `account/`, `verification/`, and `jwks/` subdirectories with `schema.json` inside each. If `jwks/` is missing, the `jwt()` plugin didn't load — re-check `src/lib/auth.ts`.
 
@@ -175,12 +174,11 @@ Expect HTTP 200 with `{token, user: {id, name, email, ...}}`. If you get 500, ch
 | --- | --- | --- |
 | `Error: The 'users-permissions' plugin is installed.` at Strapi boot | Step 2 was skipped | Remove `@strapi/plugin-users-permissions` from `package.json`, reinstall |
 | `Strapi v5.4x.x is not supported. Please upgrade to v5.45.0 or higher.` | Step 1 was skipped | Bump Strapi packages |
-| `Cannot find package '@better-auth/core'` during schema gen | `@better-auth/core` not at top of node_modules | Re-run `yarn add @better-auth/core` to hoist |
-| `TypeError: z.email is not a function` during schema gen | zod 3 won the hoist | `yarn add zod@^4.1.12` |
+| `TypeError: z.email is not a function` during schema gen | zod 3 won the top-level hoist | Confirm `zod@^4.1.12` is in `package.json` and reinstall |
 | `TypeError: Cannot read properties of undefined (reading 'attributes')` from `addUserCount` during schema gen | The bootstrap from Step 4 ran before schema existed | The template's defensive guard handles this. If you wrote a custom bootstrap, add `if (!strapi.contentTypes['plugin::better-auth.user']) return;` at the top |
 | `Could not initialize the Strapi Client … Could not parse invalid URL: "/api"` on Next.js boot | Missing `next/.env` with `NEXT_PUBLIC_API_URL` | Copy `.env.example` to `.env` |
-| `401 Unauthorized` on every `/api/*` content endpoint | Step 6 was skipped or the bootstrap silently bailed | Check `<strapi>/.env.example.log` for the warning `Public role not found`. Boot Strapi once after schema gen exists |
-| Sign-up returns 200 but navbar doesn't show user | Probably hitting `router.push('/')` and the i18n proxy throws under headless | Use `router.push(\`/${locale}\`)` in the form — the templates already do this |
+| `401 Unauthorized` on every `/api/*` content endpoint | Step 6 was skipped or the bootstrap silently bailed | Check Strapi logs for the warning `Public role not found`. Boot Strapi once after schema gen exists |
+| Sign-up returns 200 but navbar doesn't show user | Probably hitting `router.push('/')` and the i18n proxy throws under headless | Use `` router.push(`/${locale}`) `` in the form — the templates already do this |
 
 ## After the skill runs
 
