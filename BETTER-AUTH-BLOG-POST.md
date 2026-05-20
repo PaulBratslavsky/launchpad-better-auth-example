@@ -21,6 +21,12 @@ In this tutorial I'm going to walk you through, end to end, replacing `users-per
 
 > **Heads-up before you start:** all three community plugins are pre-release at the time of writing (`plugin-better-auth` is in beta, the other two in alpha). Do **not** run this in production yet. This is a playground / starter-template exercise.
 
+### Two ways to apply this
+
+The rest of the post walks through every step by hand, so you understand what's actually being changed and why. That's the recommended path if you're encountering these plugins for the first time, or if your project differs from LaunchPad in any meaningful way.
+
+If you'd rather just install it, there's a **Claude Code skill** that automates the entire process — it does all the file edits, dep installs, schema generation, and bootstrap seeding described below, scoped to **Strapi v5 + Next.js App Router**. Tell Claude Code something like *"set up better auth on this strapi and next.js project"* and the [`better-auth-setup`](https://github.com/PaulBratslavsky/launchpad-better-auth-example) skill will run. It uses the same templates and follows the same order as this post — reading the steps below first will still teach you what's happening, even if you use the skill to apply them.
+
 ## Architecture: How the Three Plugins Fit Together
 
 `users-permissions` is one plugin that does three jobs at once: it authenticates users, it provides a User content type, and it authorizes API requests via roles and permissions. The Better Auth stack splits those concerns:
