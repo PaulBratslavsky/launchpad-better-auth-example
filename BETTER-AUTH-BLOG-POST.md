@@ -192,7 +192,13 @@ Six packages, only one of which is a workaround for an upstream issue:
 | `@strapi-community/plugin-api-permissions` | Public + Authenticated roles, Content API RBAC |
 | `@strapi-community/plugin-better-auth-dashboard` | Admin panel UI for users / sessions |
 | `@better-auth/infra` | Peer dep of the dashboard's `dash()` plugin |
-| `zod@^4.1.12` | **Workaround:** `@better-auth/infra` peer-depends on zod 4 and calls `z.email()`. Strapi's own deps pull in zod 3 transitively, so by default zod 3 wins the top-level `node_modules` slot. Pinning zod 4 in your `package.json` forces it to the top, where `@better-auth/infra` finds it. |
+| `zod@^4.1.12` | **Workaround:** see callout below. |
+
+> **Why is `zod@^4.1.12` needed?**
+>
+> The dashboard plugin uses a `z.email()` function. That function only exists in zod version 4. Strapi was built against zod version 3 and pulls it in as a dependency. If you let npm/yarn pick which zod to install, it picks the one Strapi wants (zod 3), and the dashboard plugin crashes because `z.email()` doesn't exist there.
+>
+> Adding `zod@^4.1.12` to your `package.json` is how you tell npm/yarn: *"I want zod 4 at the top level, even though something else also asked for zod 3."* If you skip the dashboard plugin entirely (i.e. don't import `@better-auth/infra` in `src/lib/auth.ts`), you don't need the pin.
 
 ## Step 5 — Enable the Plugins in `config/plugins.ts`
 
