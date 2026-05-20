@@ -4,7 +4,7 @@
 - The migration is more than a plugin swap: `plugin-better-auth` **refuses to load** alongside `users-permissions`, so you also lose the role/permission system U&P provides. You get it back by adding `plugin-api-permissions`.
 - The full beta setup is actually **three** plugins: `plugin-better-auth` (auth flows), `plugin-api-permissions` (Content API RBAC), `plugin-better-auth-dashboard` (admin UI for users and sessions).
 - You will hit installation gotchas the docs don't mention yet: a hard Strapi 5.45.0+ requirement, a zod major-version mismatch, an `@better-auth/core` hoisting issue, and a CLI resolution issue with `yarn dlx`. This post fixes all of them.
-- Once everything is wired up, sign-up, sessions, and the admin dashboard all work end-to-end with the existing LaunchPad frontend with **one line changed**: the auth client's `baseURL`.
+- Three paths to apply this: clone the finished example, run a Claude Code skill on your own project, or walk through the steps by hand. The post covers all three.
 
 ## Why This Post Exists
 
@@ -21,11 +21,28 @@ In this tutorial I'm going to walk you through, end to end, replacing `users-per
 
 > **Heads-up before you start:** all three community plugins are pre-release at the time of writing (`plugin-better-auth` is in beta, the other two in alpha). Do **not** run this in production yet. This is a playground / starter-template exercise.
 
-### Two ways to apply this
+### Three ways to apply this
 
-The rest of the post walks through every step by hand, so you understand what's actually being changed and why. That's the recommended path if you're encountering these plugins for the first time, or if your project differs from LaunchPad in any meaningful way.
+Pick the path that matches what you actually want:
 
-If you'd rather just install it, there's a **Claude Code skill** that automates the entire process — it does all the file edits, dep installs, schema generation, and bootstrap seeding described below, scoped to **Strapi v5 + Next.js App Router**. The skill ships in this repo at [`.claude/skills/better-auth-setup/`](./.claude/skills/better-auth-setup/SKILL.md). Clone the repo, open it in Claude Code, and ask *"set up better auth on this strapi and next.js project"* — the skill will discover your Strapi and Next.js folders and apply the changes. It uses the same templates and follows the same order as this post, so reading the steps below first will still teach you what's happening even if you use the skill to apply them.
+**1. Just clone the finished example** — fastest, no learning.
+
+```bash
+git clone https://github.com/PaulBratslavsky/launchpad-better-auth-example.git
+cd launchpad-better-auth-example
+cd strapi && yarn install && cp .env.example .env && yarn seed && cd ..
+cd next && yarn install && cp .env.example .env && cd ..
+```
+
+Then boot Strapi (`yarn develop` in `strapi/`) and Next.js (`yarn dev` in `next/`) and you have a working Better Auth stack at `http://localhost:3000`. Skip the rest of this post.
+
+**2. Apply automatically to your own project** — when you already have a Strapi v5 + Next.js App Router project and don't want to do this by hand.
+
+There's a Claude Code skill at [`.claude/skills/better-auth-setup/`](https://github.com/PaulBratslavsky/launchpad-better-auth-example/blob/main/.claude/skills/better-auth-setup/SKILL.md) in the example repo that automates every change in this post. Clone the example repo into a directory next to your own project (or copy the `.claude/skills/better-auth-setup/` folder into your own project), open Claude Code, and ask *"set up better auth on this strapi and next.js project"*. The skill discovers your Strapi and Next.js folders and applies the same templates this post walks through.
+
+**3. Walk through it by hand** — recommended if you're seeing these plugins for the first time, your project differs from LaunchPad in any meaningful way, or you want to understand each gotcha so you can debug later. That's the rest of the post.
+
+The three paths share the same end state, the same templates, and the same gotcha fixes. Reading the manual walkthrough below makes the skill's output easier to audit, and the cloned example a useful diff target.
 
 ## Architecture: How the Three Plugins Fit Together
 
