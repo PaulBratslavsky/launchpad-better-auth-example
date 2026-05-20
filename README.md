@@ -10,6 +10,8 @@
 > - [`BETTER-AUTH-BLOG-POST.md`](./BETTER-AUTH-BLOG-POST.md) — Step-by-step tutorial walking from `strapi/LaunchPad@main` to the state of this repo
 > - [`BETTER-AUTH-SETUP.md`](./BETTER-AUTH-SETUP.md) — Concise reference guide
 >
+> **Claude Code skill:** [`.claude/skills/better-auth-setup/`](./.claude/skills/better-auth-setup/SKILL.md) — drives the entire setup automatically against your own Strapi + Next.js project. Clone this repo, open it in Claude Code, and ask *"set up better auth on this strapi and next.js project"*.
+>
 > Original LaunchPad README continues below.
 
 ---

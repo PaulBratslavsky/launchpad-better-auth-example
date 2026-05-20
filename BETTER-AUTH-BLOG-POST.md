@@ -25,7 +25,7 @@ In this tutorial I'm going to walk you through, end to end, replacing `users-per
 
 The rest of the post walks through every step by hand, so you understand what's actually being changed and why. That's the recommended path if you're encountering these plugins for the first time, or if your project differs from LaunchPad in any meaningful way.
 
-If you'd rather just install it, there's a **Claude Code skill** that automates the entire process — it does all the file edits, dep installs, schema generation, and bootstrap seeding described below, scoped to **Strapi v5 + Next.js App Router**. Tell Claude Code something like *"set up better auth on this strapi and next.js project"* and the [`better-auth-setup`](https://github.com/PaulBratslavsky/launchpad-better-auth-example) skill will run. It uses the same templates and follows the same order as this post — reading the steps below first will still teach you what's happening, even if you use the skill to apply them.
+If you'd rather just install it, there's a **Claude Code skill** that automates the entire process — it does all the file edits, dep installs, schema generation, and bootstrap seeding described below, scoped to **Strapi v5 + Next.js App Router**. The skill ships in this repo at [`.claude/skills/better-auth-setup/`](./.claude/skills/better-auth-setup/SKILL.md). Clone the repo, open it in Claude Code, and ask *"set up better auth on this strapi and next.js project"* — the skill will discover your Strapi and Next.js folders and apply the changes. It uses the same templates and follows the same order as this post, so reading the steps below first will still teach you what's happening even if you use the skill to apply them.
 
 ## Architecture: How the Three Plugins Fit Together
 
