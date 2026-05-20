@@ -119,23 +119,22 @@ cd strapi && yarn develop
 cd next && yarn dev
 ```
 
-Open `http://localhost:3000` — you should see the LaunchPad marketing site. Open `http://localhost:1337/admin`, create an admin user, and confirm `users-permissions` is in the plugins list. Then stop both servers and create a branch to do the migration on:
+Open `http://localhost:3000` — you should see the LaunchPad marketing site. Open `http://localhost:1337/admin` and confirm Strapi boots (you can skip creating the admin user — we'll wipe the database in Step 11). Then stop both servers and create a branch to do the migration on:
 
 ```bash
-git checkout -b examples/better-auth
+git checkout -b better-auth-migration
 ```
 
 ## Step 2 — Confirm Strapi is 5.45.0+
 
-`plugin-better-auth` enforces a minimum Strapi version of `5.45.0` in its `register` lifecycle. Open `strapi/package.json` and check that `@strapi/strapi`, `@strapi/plugin-cloud`, and `@strapi/plugin-users-permissions` are all at `5.45.0` or higher.
+`plugin-better-auth` enforces a minimum Strapi version of `5.45.0` in its `register` lifecycle. Open `strapi/package.json` and check that `@strapi/strapi` and `@strapi/plugin-cloud` are at `5.45.0` or higher.
 
-At time of writing LaunchPad's `main` ships with `5.46.0`, so most likely you don't need to change anything. If you cloned an older snapshot, bump the three packages to a matching 5.45+ version:
+At time of writing LaunchPad's `main` ships with `5.46.0`, so most likely you don't need to change anything. If you cloned an older snapshot, bump them to a matching 5.45+ version:
 
 ```jsonc
 {
   "dependencies": {
     "@strapi/plugin-cloud": "5.46.0",
-    "@strapi/plugin-users-permissions": "5.46.0",
     "@strapi/strapi": "5.46.0"
   }
 }
@@ -311,7 +310,7 @@ export default {
     // doesn't exist yet.
     if (!strapi.contentTypes['plugin::better-auth.user' as never]) {
       strapi.log.warn(
-        '[bootstrap] better-auth content types not found — run `yarn exec better-auth generate --config src/lib/auth.ts --yes` first.',
+        '[bootstrap] better-auth content types not found — run `npx -y @better-auth/cli generate --config src/lib/auth.ts --yes` first.',
       );
       return;
     }
@@ -628,26 +627,16 @@ A few sharp edges worth being aware of:
 - **`TypeError: z.email is not a function`** during schema generation — you skipped the `zod@^4.1.12` install. Add it and reinstall.
 - **`401 Unauthorized` on every `/api/*` content endpoint** — boot Strapi once after schema generation so the bootstrap in `src/index.ts` can seed the Public role's permissions. If you're still seeing 401s, check **Settings → API Permissions → Roles → Public** in the admin and toggle `find` / `findOne` on each content type manually.
 
-## Branch Strategy: Keep It as an Example, Don't Merge
-
-One last thing. This isn't a migration you'll want to merge back into LaunchPad's `main`. The Strapi team can't ship a starter that drops `users-permissions` — too much of the ecosystem still depends on it. So the pragmatic move is to keep this branch as a **long-lived example branch**, not a PR:
-
-```bash
-git branch -m feat/implement-better-auth examples/better-auth
-git push --set-upstream origin examples/better-auth
-```
-
-Add a section to your `README.md` on main pointing at the branch so people can find it, and periodically merge `main` into `examples/better-auth` to keep dependencies fresh. Do **not** merge it the other way.
-
 ## Where to Go Next
 
-- The full reproducible setup with every file change lives on the [`examples/better-auth`](https://github.com/strapi/LaunchPad) branch of LaunchPad
-- The companion `BETTER-AUTH-SETUP.md` in that branch is a concise reference if you don't want the narrative version
-- For social providers, plug them into `src/lib/auth.ts` — see the [Better Auth providers docs](https://better-auth.com/docs/authentication/email-password)
-- For 2FA, magic links, or organizations, add the corresponding Better Auth plugins to `src/lib/auth.ts` and re-run `yarn exec better-auth generate`
-- File issues against the community plugins on [github.com/strapi-community/plugin-better-auth](https://github.com/strapi-community/plugin-better-auth) — they're actively maintained and the maintainers respond fast
+- The full reproducible setup with every file change lives in the standalone [`PaulBratslavsky/launchpad-better-auth-example`](https://github.com/PaulBratslavsky/launchpad-better-auth-example) repo. Treat it as the canonical reference implementation. Use `git diff` against `strapi/LaunchPad@main` to see the exact set of edits.
+- The companion [`BETTER-AUTH-SETUP.md`](https://github.com/PaulBratslavsky/launchpad-better-auth-example/blob/main/BETTER-AUTH-SETUP.md) in that repo is a concise reference if you don't want the narrative version.
+- The [`better-auth-setup` Claude Code skill](https://github.com/PaulBratslavsky/launchpad-better-auth-example/tree/main/.claude/skills/better-auth-setup) automates these steps against any Strapi + Next.js project.
+- For social providers, plug them into `src/lib/auth.ts` — see the [Better Auth providers docs](https://better-auth.com/docs/authentication/email-password).
+- For 2FA, magic links, or organizations, add the corresponding Better Auth plugins to `src/lib/auth.ts` and re-run `npx -y @better-auth/cli generate --config src/lib/auth.ts --yes`.
+- File issues against the community plugins on [github.com/strapi-community/plugin-better-auth](https://github.com/strapi-community/plugin-better-auth) — they're actively maintained and the maintainers respond fast.
 
-This is what a modern, modular Strapi auth setup looks like. It's not yet production-ready, but it's a solid playground for evaluating whether you want to move off `users-permissions` longer term.
+This is the direction the Strapi team is moving — giving you the option to use Better Auth in your projects alongside (or instead of) `users-permissions`. Thank you for trying out the feature. Please share feedback, ideas, or bug reports in the [`strapi-community/plugin-better-auth`](https://github.com/strapi-community/plugin-better-auth) repo — that's where the maintainers triage issues for all three plugins.
 
 **Citations**
 
