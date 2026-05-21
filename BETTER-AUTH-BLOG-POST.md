@@ -10,6 +10,8 @@
 
 [Strapi LaunchPad](https://github.com/strapi/LaunchPad) is the marketing-site starter we use to show off what Strapi v5 + Next.js can do. Out of the box it uses the official `@strapi/plugin-users-permissions` plugin for auth, which is the safe, supported choice.
 
+![try-launchpad.png](img/try-launchpad.png)
+
 But Strapi's community has been building a more modern alternative: a set of plugins that wraps the excellent [Better Auth](https://better-auth.com) library and gives you sign-up flows, sessions, social providers, two-factor, magic links, and a real admin dashboard for managing users — all without writing controller code.
 
 In this tutorial I'm going to walk you through, end to end, replacing `users-permissions` with the Better Auth stack on top of LaunchPad. You'll come out the other side with:
@@ -19,7 +21,7 @@ In this tutorial I'm going to walk you through, end to end, replacing `users-per
 - A working sign-up flow tested in the browser
 - An admin dashboard at **Strapi Admin → Better Auth** for managing users and sessions
 
-> **Heads-up before you start:** all three community plugins are pre-release at the time of writing (`plugin-better-auth` is in beta, the other two in alpha). Do **not** run this in production yet. This is a playground / starter-template exercise.
+> **Heads-up before you start:** all three community plugins are pre-release at the time of writing — `plugin-better-auth@1.0.0-beta.6`, `plugin-api-permissions@1.0.0-alpha.3`, and `plugin-better-auth-dashboard@1.0.0-alpha.7`. Do **not** run this in production yet. This is a playground / starter-template exercise.
 
 ### Three ways to apply this
 
@@ -37,6 +39,8 @@ yarn dev
 ```
 
 That gives you a working Better Auth stack at `http://localhost:3000` (Next.js) with Strapi running on `http://localhost:1337`. Skip the rest of this post.
+
+![betterauth.gif](img/betterauth.gif)
 
 **2. Apply automatically to your own project** — when you already have a Strapi v5 + Next.js App Router project and don't want to do this by hand.
 
@@ -104,22 +108,21 @@ LaunchPad/
 └── ...
 ```
 
-Install dependencies for both:
+Install, seed, and run the project from the repo root to confirm everything works on your machine:
 
 ```bash
-cd strapi && yarn install
-cd ../next && yarn install
+yarn install
+yarn setup
+yarn seed
+yarn dev
 ```
 
-Run the project once on `main` to confirm everything works on your machine:
+What each script does:
 
-```bash
-# terminal 1
-cd strapi && yarn develop
-
-# terminal 2
-cd next && yarn dev
-```
+- `yarn install` — installs the root workspace deps.
+- `yarn setup` — runs `yarn install` inside `strapi/` and `next/` and copies each app's `.env.example` to `.env`.
+- `yarn seed` — imports the bundled Strapi data so Next.js has content to render. Without this, the home page throws `Failed to fetch single type "global"` because it queries the `global` single type at boot against an empty DB.
+- `yarn dev` — boots Strapi on `http://localhost:1337` and Next.js on `http://localhost:3000` concurrently.
 
 Open `http://localhost:3000` — you should see the LaunchPad marketing site. Open `http://localhost:1337/admin` and confirm Strapi boots (you can skip creating the admin user — we'll wipe the database in Step 11). Then stop both servers and create a branch to do the migration on:
 
@@ -142,29 +145,17 @@ At time of writing LaunchPad's `main` ships with `5.46.0`, so most likely you do
 }
 ```
 
-> **Why this is a hard requirement:** the plugin's `register.ts` calls `isVersionAtLeast(strapiVersion, MIN_STRAPI_VERSION)` and throws if you're below. There's no escape hatch.
-
 ## Step 3 — Remove `@strapi/plugin-users-permissions`
 
-This one surprises people. `plugin-better-auth` doesn't coexist with users-permissions — it throws at boot time if it sees `users-permissions` installed. Disabling it in `config/plugins.ts` does not work; the check is for the package, not the enabled state.
+`plugin-better-auth` replaces `users-permissions` — it doesn't run alongside it. The plugin checks for the `users-permissions` package at boot and throws if it finds it, so disabling it in `config/plugins.ts` isn't enough; you have to remove it from `package.json`.
 
-The relevant lines from the plugin's [source](https://github.com/strapi-community/plugin-better-auth/blob/main/plugins/plugin-better-auth/server/src/register.ts):
+Uninstall it from the `strapi/` workspace:
 
-```ts
-const usersPermissionsPlugin = strapi.plugin("users-permissions");
-if (usersPermissionsPlugin) {
-  throw new Error(
-    "[@strapi-community/plugin-better-auth] The 'users-permissions' plugin is installed. " +
-      "Better Auth and users-permissions cannot be used together.",
-  );
-}
+```bash
+cd strapi && yarn remove @strapi/plugin-users-permissions
 ```
 
-So remove it from `strapi/package.json`:
-
-```diff
-- "@strapi/plugin-users-permissions": "5.46.0",
-```
+That drops the package from `strapi/package.json`, removes it from `node_modules/`, and updates the lockfile in one step.
 
 This means you also lose the **Public** and **Authenticated** roles that users-permissions used to provide. Don't worry — we'll restore them via `plugin-api-permissions` in a moment, and your code won't notice because LaunchPad's existing code already routes auth through Better Auth (the previous branch state). If you're starting from a project that uses U&P for actual login or roles, plan a migration story for your existing users.
 
@@ -184,8 +175,6 @@ yarn add \
 
 If you're on npm, the equivalent is `npm install --legacy-peer-deps better-auth @strapi-community/plugin-better-auth ...` — same packages, same result. pnpm works identically.
 
-Six packages, only one of which is a workaround for an upstream issue:
-
 | Package | Role | Links |
 | --- | --- | --- |
 | `better-auth` | The core auth library | [docs](https://better-auth.com/docs) · [npm](https://www.npmjs.com/package/better-auth) · [github](https://github.com/better-auth/better-auth) |
@@ -195,11 +184,7 @@ Six packages, only one of which is a workaround for an upstream issue:
 | `@better-auth/infra` | Peer dep of the dashboard's `dash()` plugin | [npm](https://www.npmjs.com/package/@better-auth/infra) |
 | `zod@^4.1.12` | **Workaround:** see callout below. | [docs](https://zod.dev) · [npm](https://www.npmjs.com/package/zod) · [github](https://github.com/colinhacks/zod) |
 
-> **Why is `zod@^4.1.12` needed?**
->
-> The dashboard plugin uses a `z.email()` function. That function only exists in zod version 4. Strapi was built against zod version 3 and pulls it in as a dependency. If you let npm/yarn pick which zod to install, it picks the one Strapi wants (zod 3), and the dashboard plugin crashes because `z.email()` doesn't exist there.
->
-> Adding `zod@^4.1.12` to your `package.json` is how you tell npm/yarn: *"I want zod 4 at the top level, even though something else also asked for zod 3."* If you skip the dashboard plugin entirely (i.e. don't import `@better-auth/infra` in `src/lib/auth.ts`), you don't need the pin.
+> **Why pin `zod@^4.1.12`?** The dashboard plugin calls `z.email()`, which only exists in zod 4. Strapi pulls in zod 3 transitively, so without an explicit top-level pin the dashboard crashes. You can skip the pin only if you also skip `@better-auth/infra` / `dash()` in `src/lib/auth.ts`.
 
 ## Step 5 — Enable the Plugins in `config/plugins.ts`
 
@@ -220,11 +205,15 @@ export default () => ({
 });
 ```
 
-That's all the configuration the plugins need here — the real Better Auth config has moved to its own file in `1.0.0-beta.1`.
-
 ## Step 6 — Create `src/lib/auth.ts`
 
-This is the new home for the `betterAuth()` factory call. The schema generator reads this file, and the Strapi runtime imports it to handle requests.
+This step comes from the plugin's [Installation guide](https://strapi-community.github.io/plugin-better-auth/docs/better-auth/installation), which tells you to put your `betterAuth()` call in `src/lib/auth.ts`. We add it because every Better Auth integration needs a single config file that does three things:
+
+- declares which providers and plugins are enabled (email/password, JWT, the dashboard)
+- exports the configured `auth` instance the Strapi runtime imports at boot to mount the `/api/auth/*` routes
+- gives the Better Auth CLI a `--config` target so it can generate the matching content types in Step 9
+
+Create a new file at `strapi/src/lib/auth.ts` (make the `lib/` folder if it doesn't exist) and paste in:
 
 ```ts
 // strapi/src/lib/auth.ts
@@ -262,21 +251,20 @@ export const auth = betterAuth({
 });
 ```
 
-A few details worth flagging:
+The plugin docs' [Installation example](https://strapi-community.github.io/plugin-better-auth/docs/better-auth/installation) is intentionally minimal — just `database`, `trustedOrigins`, and `generateId`. We add more on top because the tutorial uses email/password sign-up and the dashboard plugin. Line by line:
 
-- **`generateId: 'serial'`** is required. It tells Better Auth to use auto-incrementing integer IDs so they line up with Strapi's primary keys. Forget this and you get foreign-key explosions on first sign-up.
-- **`jwt()`** is a Better Auth plugin that adds a JWKS table — the dashboard signs internal requests with a JWT, so the JWKS table needs to exist for the dashboard to work.
-- **`dash({...})`** wires the dashboard into Better Auth. The `apiKey` is the shared secret between the dashboard frontend and the Strapi instance — put the real value in `.env`.
+- **`secret`** — signs sessions/JWTs. Auto-generated in dev with a warning; set it in `.env` (Step 7) for anything you ship.
+- **`baseURL`** — Better Auth's own public URL, used to build callback URLs.
+- **`trustedOrigins`** — origins allowed to call the auth endpoints (your Next.js app).
+- **`emailAndPassword: { enabled: true }`** — **required** to opt into email/password sign-up; without it `signUp.email()` returns `method not allowed`. `requireEmailVerification: false` is already the default.
+- **`session.expiresIn`** — 7-day sessions. Optional.
+- **`advanced.database.generateId: 'serial'`** — **required**. Integer IDs that line up with Strapi's primary keys; omit and foreign keys blow up on first sign-up.
+- **`jwt()`** — adds the JWKS table the dashboard signs its internal requests with.
+- **`dash({...})`** — wires the dashboard in. `apiKey` is the shared secret between dashboard and Strapi (real value in `.env`, Step 7).
 
 ## Step 7 — Add the Required Env Vars
 
-LaunchPad ships an `.env.example` but no `.env` — if you skipped this earlier, copy it now:
-
-```bash
-cp strapi/.env.example strapi/.env
-```
-
-Then append the two Better Auth secrets:
+`yarn setup` already copied `strapi/.env.example` to `strapi/.env`. Open that file and append the two Better Auth secrets:
 
 ```bash
 BETTER_AUTH_SECRET=replace-with-a-long-random-string
@@ -351,13 +339,10 @@ export default {
 };
 ```
 
-A few things to note about this:
+Two things worth calling out:
 
-- The bootstrap waits for `plugin-api-permissions` to be loaded, then checks that the Better Auth content types exist before doing anything. **This guard is essential** — the schema-generation step in Step 9 boots Strapi with the new plugins, and `plugin-api-permissions` will crash if the bootstrap tries to query roles before the Better Auth `user` content type exists. The guard lets the first run be a no-op.
-- It iterates every `api::*.*` content type in your project and grants the Public role `find` and `findOne` on each.
-- The action format is `<content-type-uid>.<action>` — e.g. `api::article.article.find`. That's the format the underlying CASL ability engine expects.
-- The check `if (existingActions.has(actionKey)) continue;` makes the bootstrap idempotent. Restarting Strapi won't duplicate permissions.
-- We cast `strapi.documents` to `any` because Strapi's generated TypeScript types don't include the `api-permissions` plugin's content types. Without the cast, `yarn seed` (which type-checks first) fails with `Argument of type '"plugin::api-permissions.permission"' is not assignable to parameter of type 'ContentType'`.
+- **The content-type guard** lets the first boot in Step 9 be a no-op — without it, `plugin-api-permissions` crashes querying roles before the `ba_*` tables exist.
+- **The `strapi.documents as any` cast** is a workaround for missing TypeScript types on the `api-permissions` plugin's content types; without it, `yarn seed` fails at type-check.
 
 ## Step 9 — Generate the Better Auth Schema
 
@@ -366,8 +351,6 @@ A few things to note about this:
 ```bash
 npx -y @better-auth/cli generate --config src/lib/auth.ts --yes
 ```
-
-> The Better Auth docs suggest `npx auth generate`. The longer form `npx -y @better-auth/cli generate` does the same thing and skips an interactive prompt about downloading the CLI. Either works.
 
 You should see output like:
 
@@ -393,13 +376,7 @@ The Better Auth tables are prefixed with `ba_` by default (`ba_user`, `ba_sessio
 
 LaunchPad's `main` ships with a sign-up *page* but the form is a static UI mockup — there's no auth client, no submit handler, no sign-in page, and no user menu in the navbar. We need to add all of that. There are five edits here.
 
-First, copy `.env.example` to `.env` in the frontend so the Strapi client knows where to call:
-
-```bash
-cp next/.env.example next/.env
-```
-
-The important key is `NEXT_PUBLIC_API_URL=http://localhost:1337`. If it's missing, the Next.js Strapi client errors out before any page can render with `Could not initialize the Strapi Client … Could not parse invalid URL: "/api"`.
+`yarn setup` already created `next/.env` from the example. The important key inside it is `NEXT_PUBLIC_API_URL=http://localhost:1337`. If it's missing, the Next.js Strapi client errors out before any page can render with `Could not initialize the Strapi Client … Could not parse invalid URL: "/api"`.
 
 Install the Better Auth client SDK:
 
@@ -421,8 +398,6 @@ export const authClient = createAuthClient({
 
 export const { signIn, signUp, signOut, useSession } = authClient;
 ```
-
-Note the endpoint path is `/api/auth`, not `/api/better-auth` — the path was renamed in `1.0.0-beta.1`.
 
 ### 10.2 Update `register.tsx` with a submit handler
 
@@ -459,17 +434,21 @@ export const Register = () => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+
     const { error: signUpError } = await signUp.email({
       email,
       password,
       name: name || email,
     });
+
     setIsSubmitting(false);
+
     if (signUpError) {
       setError(signUpError.message ?? 'Sign up failed');
       return;
     }
-    router.push(`/${locale}`);
+
+    router.push('/');
     router.refresh();
   }
 
@@ -479,12 +458,100 @@ export const Register = () => {
       provider,
       callbackURL: `/${locale}`,
     });
-    if (socialError) setError(socialError.message ?? `${provider} sign-in failed`);
+    if (socialError) {
+      setError(socialError.message ?? `${provider} sign-in failed`);
+    }
   }
 
-  // (rest of the JSX is the form layout LaunchPad already ships — bind name/email/password to state, render `error` if set, disable submit when isSubmitting; the [`launchpad-better-auth-example`](https://github.com/PaulBratslavsky/launchpad-better-auth-example) repo has the full file)
+  return (
+    <Container className="h-screen max-w-lg mx-auto flex flex-col items-center justify-center">
+      <Logo />
+      <h1 className="text-xl md:text-4xl font-bold my-4">
+        Sign up for LaunchPad
+      </h1>
 
-  return (/* form JSX from the example repo */);
+      <form className="w-full my-4" onSubmit={handleSubmit}>
+        <input
+          type="text"
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="h-10 pl-4 w-full mb-4 rounded-md text-sm bg-charcoal border border-neutral-800 text-white placeholder-neutral-500 outline-none focus:outline-none active:outline-none focus:ring-2 focus:ring-neutral-800"
+        />
+        <input
+          type="email"
+          placeholder="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="h-10 pl-4 w-full mb-4 rounded-md text-sm bg-charcoal border border-neutral-800 text-white placeholder-neutral-500 outline-none focus:outline-none active:outline-none focus:ring-2 focus:ring-neutral-800"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          className="h-10 pl-4 w-full mb-4 rounded-md text-sm bg-charcoal border border-neutral-800 text-white placeholder-neutral-500 outline-none focus:outline-none active:outline-none focus:ring-2 focus:ring-neutral-800"
+        />
+        {error && (
+          <p className="text-sm text-red-400 mb-4">{error}</p>
+        )}
+        <Button
+          variant="muted"
+          type="submit"
+          className="w-full py-3"
+          disabled={isSubmitting}
+        >
+          <span className="text-sm">{isSubmitting ? 'Signing up…' : 'Sign up'}</span>
+        </Button>
+      </form>
+
+      <p className="text-sm text-neutral-400">
+        Already have an account?{' '}
+        <Link
+          href={`/${locale}/sign-in`}
+          className="text-white underline underline-offset-2 hover:text-secondary"
+        >
+          Sign in
+        </Link>
+      </p>
+
+      <Divider />
+
+      <div className="flex flex-col sm:flex-row gap-4 w-full">
+        <button
+          type="button"
+          onClick={() => handleSocial('github')}
+          className="flex flex-1 justify-center space-x-2 items-center bg-white px-4 py-3 rounded-md text-black hover:bg-white/80 transition duration-200 shadow-[0px_1px_0px_0px_#00000040_inset]"
+        >
+          <IconBrandGithubFilled className="h-4 w-4 text-black" />
+          <span className="text-sm">Login with GitHub</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSocial('google')}
+          className="flex flex-1 justify-center space-x-2 items-center bg-white px-4 py-3 rounded-md text-black hover:bg-white/80 transition duration-200 shadow-[0px_1px_0px_0px_#00000040_inset]"
+        >
+          <IconBrandGoogleFilled className="h-4 w-4 text-black" />
+          <span className="text-sm">Login with Google</span>
+        </button>
+      </div>
+    </Container>
+  );
+};
+
+const Divider = () => {
+  return (
+    <div className="relative w-full py-8">
+      <div className="w-full h-px bg-neutral-700 rounded-tr-xl rounded-tl-xl" />
+      <div className="w-full h-px bg-neutral-800 rounded-br-xl rounded-bl-xl" />
+      <div className="absolute inset-0 h-5 w-5 m-auto rounded-md px-3 py-0.5 text-xs bg-neutral-800 shadow-[0px_-1px_0px_0px_var(--neutral-700)] flex items-center justify-center">
+        OR
+      </div>
+    </div>
+  );
 };
 ```
 
@@ -507,7 +574,144 @@ export default function SignInPage() {
 }
 ```
 
-And the form component — same shape as `Register`, but calling `signIn.email({ email, password })` and `signIn.social({ provider, callbackURL })`. Full file in the [example repo](https://github.com/PaulBratslavsky/launchpad-better-auth-example/blob/main/next/components/sign-in-form.tsx).
+And the form component — same shape as `Register`, but calling `signIn.email({ email, password })` instead of `signUp.email`. Create `next/components/sign-in-form.tsx`:
+
+```tsx
+// next/components/sign-in-form.tsx
+'use client';
+
+import {
+  IconBrandGithubFilled,
+  IconBrandGoogleFilled,
+} from '@tabler/icons-react';
+import { Link } from 'next-view-transitions';
+import { useParams, useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+
+import { Container } from './container';
+import { Button } from './elements/button';
+import { Logo } from './logo';
+import { signIn } from '@/lib/auth-client';
+
+export const SignInForm = () => {
+  const router = useRouter();
+  const params = useParams<{ locale: string }>();
+  const locale = params?.locale ?? 'en';
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    const { error: signInError } = await signIn.email({ email, password });
+
+    setIsSubmitting(false);
+
+    if (signInError) {
+      setError(signInError.message ?? 'Sign in failed');
+      return;
+    }
+
+    router.push('/');
+    router.refresh();
+  }
+
+  async function handleSocial(provider: 'github' | 'google') {
+    setError(null);
+    const { error: socialError } = await signIn.social({
+      provider,
+      callbackURL: `/${locale}`,
+    });
+    if (socialError) {
+      setError(socialError.message ?? `${provider} sign-in failed`);
+    }
+  }
+
+  return (
+    <Container className="h-screen max-w-lg mx-auto flex flex-col items-center justify-center">
+      <Logo />
+      <h1 className="text-xl md:text-4xl font-bold my-4">
+        Sign in to LaunchPad
+      </h1>
+
+      <form className="w-full my-4" onSubmit={handleSubmit}>
+        <input
+          type="email"
+          placeholder="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="h-10 pl-4 w-full mb-4 rounded-md text-sm bg-charcoal border border-neutral-800 text-white placeholder-neutral-500 outline-none focus:outline-none active:outline-none focus:ring-2 focus:ring-neutral-800"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="h-10 pl-4 w-full mb-4 rounded-md text-sm bg-charcoal border border-neutral-800 text-white placeholder-neutral-500 outline-none focus:outline-none active:outline-none focus:ring-2 focus:ring-neutral-800"
+        />
+        {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
+        <Button
+          variant="muted"
+          type="submit"
+          className="w-full py-3"
+          disabled={isSubmitting}
+        >
+          <span className="text-sm">{isSubmitting ? 'Signing in…' : 'Sign in'}</span>
+        </Button>
+      </form>
+
+      <p className="text-sm text-neutral-400">
+        Don&apos;t have an account?{' '}
+        <Link
+          href={`/${locale}/sign-up`}
+          className="text-white underline underline-offset-2 hover:text-secondary"
+        >
+          Sign up
+        </Link>
+      </p>
+
+      <Divider />
+
+      <div className="flex flex-col sm:flex-row gap-4 w-full">
+        <button
+          type="button"
+          onClick={() => handleSocial('github')}
+          className="flex flex-1 justify-center space-x-2 items-center bg-white px-4 py-3 rounded-md text-black hover:bg-white/80 transition duration-200 shadow-[0px_1px_0px_0px_#00000040_inset]"
+        >
+          <IconBrandGithubFilled className="h-4 w-4 text-black" />
+          <span className="text-sm">Login with GitHub</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSocial('google')}
+          className="flex flex-1 justify-center space-x-2 items-center bg-white px-4 py-3 rounded-md text-black hover:bg-white/80 transition duration-200 shadow-[0px_1px_0px_0px_#00000040_inset]"
+        >
+          <IconBrandGoogleFilled className="h-4 w-4 text-black" />
+          <span className="text-sm">Login with Google</span>
+        </button>
+      </div>
+    </Container>
+  );
+};
+
+const Divider = () => {
+  return (
+    <div className="relative w-full py-8">
+      <div className="w-full h-px bg-neutral-700 rounded-tr-xl rounded-tl-xl" />
+      <div className="w-full h-px bg-neutral-800 rounded-br-xl rounded-bl-xl" />
+      <div className="absolute inset-0 h-5 w-5 m-auto rounded-md px-3 py-0.5 text-xs bg-neutral-800 shadow-[0px_-1px_0px_0px_var(--neutral-700)] flex items-center justify-center">
+        OR
+      </div>
+    </div>
+  );
+};
+```
 
 ### 10.4 Add a user menu to the navbar
 
@@ -552,7 +756,269 @@ export const UserMenu = ({ locale }: { locale: string }) => {
 
 ### 10.5 Mount `UserMenu` in the desktop and mobile navbars
 
-Edit `next/components/navbar/desktop-navbar.tsx` and `next/components/navbar/mobile-navbar.tsx` to render `<UserMenu locale={locale} />` in the right slot of the navbar. The example repo has both files committed — diff against `main` to see exactly where the component slots in.
+Replace each navbar file with the version below — the only behavioral change is wrapping the `rightNavbarItems` map in `session?.user ? <UserMenu /> : (...)` so the menu shows when signed in and the original sign-up/sign-in buttons show otherwise.
+
+**`next/components/navbar/desktop-navbar.tsx`**
+
+```tsx
+// next/components/navbar/desktop-navbar.tsx
+'use client';
+
+import {
+  AnimatePresence,
+  motion,
+  useMotionValueEvent,
+  useScroll,
+} from 'framer-motion';
+import { Link } from 'next-view-transitions';
+import { useState } from 'react';
+
+import { LocaleSwitcher } from '../locale-switcher';
+import { NavbarItem } from './navbar-item';
+import { UserMenu } from './user-menu';
+import { Button } from '@/components/elements/button';
+import { Logo } from '@/components/logo';
+import { useSession } from '@/lib/auth-client';
+import { cn } from '@/lib/utils';
+
+type Props = {
+  leftNavbarItems: {
+    URL: string;
+    text: string;
+    target?: string;
+  }[];
+  rightNavbarItems: {
+    URL: string;
+    text: string;
+    target?: string;
+  }[];
+  logo: any;
+  locale: string;
+};
+
+export const DesktopNavbar = ({
+  leftNavbarItems,
+  rightNavbarItems,
+  logo,
+  locale,
+}: Props) => {
+  const { scrollY } = useScroll();
+  const { data: session } = useSession();
+
+  const [showBackground, setShowBackground] = useState(false);
+
+  useMotionValueEvent(scrollY, 'change', (value) => {
+    if (value > 100) {
+      setShowBackground(true);
+    } else {
+      setShowBackground(false);
+    }
+  });
+  return (
+    <motion.div
+      className={cn(
+        'w-full flex relative justify-between px-4 py-3 rounded-md  transition duration-200 bg-transparent mx-auto'
+      )}
+      animate={{
+        width: showBackground ? '80%' : '100%',
+        background: showBackground ? 'var(--neutral-900)' : 'transparent',
+      }}
+      transition={{
+        duration: 0.4,
+      }}
+    >
+      <AnimatePresence>
+        {showBackground && (
+          <motion.div
+            key={String(showBackground)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{
+              duration: 1,
+            }}
+            className="absolute inset-0 h-full w-full bg-neutral-900 pointer-events-none [mask-image:linear-gradient(to_bottom,white,transparent,white)] rounded-full"
+          />
+        )}
+      </AnimatePresence>
+      <div className="flex flex-row gap-2 items-center">
+        <Logo locale={locale} image={logo?.image} />
+        <div className="flex items-center gap-1.5">
+          {leftNavbarItems.map((item) => (
+            <NavbarItem
+              href={`/${locale}${item.URL}` as never}
+              key={item.text}
+              target={item.target}
+            >
+              {item.text}
+            </NavbarItem>
+          ))}
+        </div>
+      </div>
+      <div className="flex space-x-2 items-center">
+        <LocaleSwitcher currentLocale={locale} />
+
+        {session?.user ? (
+          <UserMenu locale={locale} />
+        ) : (
+          rightNavbarItems.map((item, index) => (
+            <Button
+              key={item.text}
+              variant={
+                index === rightNavbarItems.length - 1 ? 'primary' : 'simple'
+              }
+              as={Link}
+              href={`/${locale}${item.URL}`}
+            >
+              {item.text}
+            </Button>
+          ))
+        )}
+      </div>
+    </motion.div>
+  );
+};
+```
+
+**`next/components/navbar/mobile-navbar.tsx`**
+
+```tsx
+// next/components/navbar/mobile-navbar.tsx
+'use client';
+
+import { useMotionValueEvent, useScroll } from 'framer-motion';
+import { Link } from 'next-view-transitions';
+import { useState } from 'react';
+import { IoIosMenu, IoIosClose } from 'react-icons/io';
+
+import { LocaleSwitcher } from '../locale-switcher';
+import { UserMenu } from './user-menu';
+import { Button } from '@/components/elements/button';
+import { Logo } from '@/components/logo';
+import { useSession } from '@/lib/auth-client';
+import { cn } from '@/lib/utils';
+
+type Props = {
+  leftNavbarItems: {
+    URL: string;
+    text: string;
+    target?: string;
+  }[];
+  rightNavbarItems: {
+    URL: string;
+    text: string;
+    target?: string;
+  }[];
+  logo: any;
+  locale: string;
+};
+
+export const MobileNavbar = ({
+  leftNavbarItems,
+  rightNavbarItems,
+  logo,
+  locale,
+}: Props) => {
+  const [open, setOpen] = useState(false);
+  const { data: session } = useSession();
+
+  const { scrollY } = useScroll();
+
+  const [showBackground, setShowBackground] = useState(false);
+
+  useMotionValueEvent(scrollY, 'change', (value) => {
+    if (value > 100) {
+      setShowBackground(true);
+    } else {
+      setShowBackground(false);
+    }
+  });
+
+  return (
+    <div
+      className={cn(
+        'flex justify-between bg-transparent items-center w-full rounded-md px-2.5 py-1.5 transition duration-200',
+        showBackground &&
+          ' bg-neutral-900  shadow-[0px_-2px_0px_0px_var(--neutral-800),0px_2px_0px_0px_var(--neutral-800)]'
+      )}
+    >
+      <Logo image={logo?.image} />
+
+      <IoIosMenu
+        className="text-white h-6 w-6"
+        onClick={() => setOpen(!open)}
+      />
+
+      {open && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col items-start justify-start space-y-10  pt-5  text-xl text-zinc-600  transition duration-200 hover:text-zinc-800">
+          <div className="flex items-center justify-between w-full px-5">
+            <Logo locale={locale} image={logo?.image} />
+            <div className="flex items-center space-x-2">
+              <LocaleSwitcher currentLocale={locale} />
+              <IoIosClose
+                className="h-8 w-8 text-white"
+                onClick={() => setOpen(!open)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col items-start justify-start gap-[14px] px-8">
+            {leftNavbarItems.map((navItem: any, idx: number) => (
+              <>
+                {navItem.children && navItem.children.length > 0 ? (
+                  <>
+                    {navItem.children.map((childNavItem: any, idx: number) => (
+                      <Link
+                        key={`link=${idx}`}
+                        href={`/${locale}${childNavItem.URL}`}
+                        onClick={() => setOpen(false)}
+                        className="relative max-w-[15rem] text-left text-2xl"
+                        suppressHydrationWarning
+                      >
+                        <span className="block text-white">
+                          {childNavItem.text}
+                        </span>
+                      </Link>
+                    ))}
+                  </>
+                ) : (
+                  <Link
+                    key={`link=${idx}`}
+                    href={`/${locale}${navItem.URL}`}
+                    onClick={() => setOpen(false)}
+                    className="relative"
+                    suppressHydrationWarning
+                  >
+                    <span className="block text-[26px] text-white">
+                      {navItem.text}
+                    </span>
+                  </Link>
+                )}
+              </>
+            ))}
+          </div>
+          <div className="flex flex-row w-full items-start gap-2.5  px-8 py-4 ">
+            {session?.user ? (
+              <UserMenu locale={locale} />
+            ) : (
+              rightNavbarItems.map((item, index) => (
+                <Button
+                  key={item.text}
+                  variant={
+                    index === rightNavbarItems.length - 1 ? 'primary' : 'simple'
+                  }
+                  as={Link}
+                  href={`/${locale}${item.URL}`}
+                >
+                  {item.text}
+                </Button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+```
 
 > **Shortcut:** since the frontend changes are scoped to those five files, the fastest way to apply this step is to copy them from the [`launchpad-better-auth-example`](https://github.com/PaulBratslavsky/launchpad-better-auth-example) repo into your `next/` folder. The Strapi-side configuration is what makes this tutorial different from a generic Better Auth setup — the frontend is just a stock Better Auth React client wiring.
 
@@ -569,18 +1035,24 @@ cd strapi && yes | yarn seed
 
 ## Step 12 — Boot It Up
 
-```bash
-# terminal 1
-cd strapi && yarn develop
+From the repo root:
 
-# terminal 2
-cd next && yarn dev
+```bash
+yarn dev
 ```
 
 You should see Strapi start cleanly with no plugin errors. Open:
 
 - **http://localhost:1337/admin** — log in, you'll see a new **Better Auth** tab in the left nav (the dashboard). Under **Settings → API Permissions** you'll see the role manager with Public and Authenticated pre-seeded.
 - **http://localhost:3000** — the LaunchPad marketing site.
+
+You will have to create a new Strapi Admin user.  
+
+![strapi-login.png](img/strapi-login.png)
+
+Once created, you should be able to login and got to the **Better Auth** dashboard.
+
+![dashboard.png](img/dashboard.png)
 
 ## Step 13 — Test the Sign-Up Flow
 
@@ -590,6 +1062,8 @@ Navigate to `http://localhost:3000/en/sign-up`, fill in name / email / password,
 2. A session cookie set on `localhost:1337`
 3. A redirect to `/`
 4. The navbar updates to "Hi {name}" with a Logout button
+
+![demo-auth.gif](img/demo-auth.gif)
 
 If you want to verify from the command line:
 
