@@ -3,7 +3,6 @@
 - Strapi's official `users-permissions` plugin works fine, but if you want modern auth flows (social providers, two-factor, magic links) the community Better Auth plugins are a solid alternative — though they're still in alpha/beta.
 - The migration is more than a plugin swap: `plugin-better-auth` **refuses to load** alongside `users-permissions`, so you also lose the role/permission system U&P provides. You get it back by adding `plugin-api-permissions`.
 - The full beta setup is actually **three** plugins: `plugin-better-auth` (auth flows), `plugin-api-permissions` (Content API RBAC), `plugin-better-auth-dashboard` (admin UI for users and sessions).
-- One install-time gotcha worth knowing: Strapi pulls in zod 3 transitively but `@better-auth/infra` needs zod 4 — you need to install `zod@^4.1.12` explicitly so it wins the top-level slot. Without it, schema generation fails. Aside from that, the install is what the docs say.
 - Three paths to apply this: clone the finished example, run a Claude Code skill on your own project, or walk through the steps by hand. The post covers all three.
 
 ## Why This Post Exists
